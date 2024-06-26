@@ -1,0 +1,45 @@
+my_blog_module.get_blogs:
+  path: '/blogs'
+  defaults:
+    _controller: '\Drupal\get_blogs\Controller\BlogController::getBlogs'
+    _title: 'Get Blogs'
+  requirements:
+    _permission: 'access content'
+
+my_blog_module.get_blog:
+  path: '/blogs/{id}'
+  defaults:
+    _controller: '\Drupal\get_blogs\Controller\BlogController::getBlog'
+    _title: 'Get Blog'
+  requirements:
+    _permission: 'access content'
+    id: \d+
+
+my_blog_module.create_blog:
+  path: '/blogs'
+  defaults:
+    _controller: '\Drupal\get_blogs\Controller\BlogController::createBlog'
+    _title: 'Create Blog'
+  requirements:
+    _permission: 'access content'
+  methods: [POST]
+
+my_blog_module.update_blog:
+  path: '/blogs/{id}'
+  defaults:
+    _controller: '\Drupal\get_blogs\Controller\BlogController::updateBlog'
+    _title: 'Update Blog'
+  requirements:
+    _permission: 'access content'
+    id: \d+
+  methods: [PUT]
+
+my_blog_module.delete_blog:
+  path: '/blogs/{id}'
+  defaults:
+    _controller: '\Drupal\get_blogs\Controller\BlogController::deleteBlog'
+    _title: 'Delete Blog'
+  requirements:
+    _permission: 'access content'
+    id: \d+
+  methods: [DELETE]

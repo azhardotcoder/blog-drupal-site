@@ -1,0 +1,7 @@
+name: 'My Blog Module'
+type: module
+description: 'A custom module to fetch blogs using EntityTypeManager.'
+core_version_requirement: ^10
+package: Custom
+dependencies:
+  - drupal:node

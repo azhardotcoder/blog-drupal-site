@@ -20,7 +20,9 @@
         "drupal/core-composer-scaffold": "^10.2",
         "drupal/core-project-message": "^10.2",
         "drupal/core-recommended": "^10.2",
-        "drush/drush": "^12.5"
+        "drupal/restui": "^1.21",
+        "drush/drush": "^12.5",
+        "symfony/http-foundation": "^6.4"
     },
     "conflict": {
         "drupal/drupal": "*"

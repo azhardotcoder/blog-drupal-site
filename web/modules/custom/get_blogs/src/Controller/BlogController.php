@@ -5,18 +5,36 @@ namespace Drupal\get_blogs\Controller;
 use Drupal\Core\Controller\ControllerBase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Drupal\Core\Database\Database;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\node\Entity\Node;
 
 class BlogController extends ControllerBase {
 
   /**
-   * Get the database connection.
+   * The entity type manager service.
    *
-   * @return \Drupal\Core\Database\Connection
-   *   The database connection.
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
    */
-  private function getDatabaseConnection() {
-    return Database::getConnection();
+  protected $entityTypeManager;
+
+  /**
+   * Constructs a new BlogController.
+   *
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager service.
+   */
+  public function __construct(EntityTypeManagerInterface $entity_type_manager) {
+    $this->entityTypeManager = $entity_type_manager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('entity_type.manager')
+    );
   }
 
   /**
@@ -26,14 +44,23 @@ class BlogController extends ControllerBase {
    *   The response containing the list of blogs.
    */
   public function getBlogs() {
-    $connection = $this->getDatabaseConnection();
-    $query = $connection->select('blog_posts', 'bp')
-      ->fields('bp');
-    $result = $query->execute();
+    // Load the blog nodes.
+    $query = $this->entityTypeManager->getStorage('node')->getQuery()
+      ->condition('type', 'blog')
+      ->condition('status', 1)
+      ->sort('created', 'DESC')
+      ->accessCheck(TRUE);
+
+    $nids = $query->execute();
+    $nodes = $this->entityTypeManager->getStorage('node')->loadMultiple($nids);
 
     $blogs = [];
-    foreach ($result as $record) {
-      $blogs[] = (array) $record;
+    foreach ($nodes as $node) {
+      $blogs[] = [
+        'id' => $node->id(),
+        'title' => $node->getTitle(),
+        'body' => $node->get('body')->value,
+      ];
     }
 
     return new JsonResponse(['message' => 'List of blogs', 'blogs' => $blogs], 200);
@@ -49,15 +76,15 @@ class BlogController extends ControllerBase {
    *   The response containing the blog post or an error message.
    */
   public function getBlog($id) {
-    $connection = $this->getDatabaseConnection();
-    $record = $connection->select('blog_posts', 'bp')
-      ->fields('bp')
-      ->condition('id', $id)
-      ->execute()
-      ->fetchAssoc();
+    $node = $this->entityTypeManager->getStorage('node')->load($id);
 
-    if ($record) {
-      return new JsonResponse(['message' => 'Blog post found', 'blog' => $record], 200);
+    if ($node && $node->bundle() === 'blog' && $node->isPublished()) {
+      $blog = [
+        'id' => $node->id(),
+        'title' => $node->getTitle(),
+        'body' => $node->get('body')->value,
+      ];
+      return new JsonResponse(['message' => 'Blog post found', 'blog' => $blog], 200);
     }
     else {
       return new JsonResponse(['message' => 'Blog post not found'], 404);
@@ -79,14 +106,17 @@ class BlogController extends ControllerBase {
       return new JsonResponse(['message' => 'Invalid data provided'], 400);
     }
 
-    $connection = $this->getDatabaseConnection();
     try {
-      $connection->insert('blog_posts')
-        ->fields([
-          'title' => $data['title'],
-          'body' => $data['body'],
-        ])
-        ->execute();
+      $node = Node::create([
+        'type' => 'blog',
+        'title' => $data['title'],
+        'body' => [
+          'value' => $data['body'],
+          'format' => 'basic_html',
+        ],
+        'status' => 1,
+      ]);
+      $node->save();
 
       return new JsonResponse(['message' => 'Blog post created'], 201);
     }
@@ -113,21 +143,20 @@ class BlogController extends ControllerBase {
       return new JsonResponse(['message' => 'Invalid data provided'], 400);
     }
 
-    $connection = $this->getDatabaseConnection();
-    $fields_to_update = array_filter($data, function ($value, $key) {
-      return in_array($key, ['title', 'body']);
-    }, ARRAY_FILTER_USE_BOTH);
+    $node = $this->entityTypeManager->getStorage('node')->load($id);
 
-    if (empty($fields_to_update)) {
-      return new JsonResponse(['message' => 'No changes specified'], 304);
-    }
+    if ($node && $node->bundle() === 'blog') {
+      if (isset($data['title'])) {
+        $node->setTitle($data['title']);
+      }
+      if (isset($data['body'])) {
+        $node->set('body', [
+          'value' => $data['body'],
+          'format' => 'basic_html',
+        ]);
+      }
+      $node->save();
 
-    $affected_rows = $connection->update('blog_posts')
-      ->fields($fields_to_update)
-      ->condition('id', $id)
-      ->execute();
-
-    if ($affected_rows) {
       return new JsonResponse(['message' => 'Blog post updated'], 200);
     }
     else {
@@ -145,16 +174,14 @@ class BlogController extends ControllerBase {
    *   The response containing a success or error message.
    */
   public function deleteBlog($id) {
-    $connection = $this->getDatabaseConnection();
-    $affected_rows = $connection->delete('blog_posts')
-      ->condition('id', $id)
-      ->execute();
+    $node = $this->entityTypeManager->getStorage('node')->load($id);
 
-    if ($affected_rows) {
+    if ($node && $node->bundle() === 'blog') {
+      $node->delete();
       return new JsonResponse(['message' => 'Blog post deleted'], 200);
     }
     else {
-      return new JsonResponse(['message' => 'Error deleting blog post'], 500);
+      return new JsonResponse(['message' => 'Blog post not found'], 404);
     }
   }
 
