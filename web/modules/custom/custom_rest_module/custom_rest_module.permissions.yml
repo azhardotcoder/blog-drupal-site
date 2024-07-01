@@ -1,0 +1,4 @@
+access custom rest resource:
+  title: 'Access custom REST resource'
+  description: 'Allow users to access custom REST resource endpoints.'
+  restrict access: true

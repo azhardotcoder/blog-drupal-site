@@ -1,0 +1,8 @@
+name: 'Custom REST Module'
+type: module
+description: 'Provides a custom RESTful web service for CRUD operations.'
+core_version_requirement: ^10
+package: Custom
+dependencies:
+  - rest:rest
+  - serialization:serialization
