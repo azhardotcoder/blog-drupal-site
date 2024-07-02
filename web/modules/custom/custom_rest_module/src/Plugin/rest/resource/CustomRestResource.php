@@ -1,5 +1,3 @@
-<?php
-
 namespace Drupal\custom_rest_module\Plugin\rest\resource;
 
 use Drupal\rest\Plugin\ResourceBase;
@@ -28,17 +26,13 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 class CustomRestResource extends ResourceBase {
   /**
    * A current user instance.
-   *
-   * @var \Drupal\Core\Session\AccountProxyInterface
    */
-  protected $currentUser;
+  protected AccountProxyInterface $currentUser;
 
   /**
    * The entity type manager.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
    */
-  protected $entityTypeManager;
+  protected EntityTypeManagerInterface $entityTypeManager;
 
   /**
    * Constructs a new CustomRestResource object.
