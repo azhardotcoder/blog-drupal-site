@@ -1,8 +1,14 @@
 name: 'Custom REST Module'
 type: module
-description: 'Provides a custom RESTful web service for CRUD operations.'
+description: 'Provides a custom REST resource.'
 core_version_requirement: ^10
 package: Custom
 dependencies:
-  - rest:rest
-  - serialization:serialization
+  - rest
+  - serialization
+  - hal
+permissions:
+  - 'restful get custom_rest_resource'
+  - 'restful post custom_rest_resource'
+  - 'restful patch custom_rest_resource'
+  - 'restful delete custom_rest_resource'

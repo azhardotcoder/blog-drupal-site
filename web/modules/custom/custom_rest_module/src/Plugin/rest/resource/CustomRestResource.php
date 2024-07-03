@@ -2,14 +2,14 @@ namespace Drupal\custom_rest_module\Plugin\rest\resource;
 
 use Drupal\rest\Plugin\ResourceBase;
 use Drupal\rest\ResourceResponse;
-use Drupal\Core\Session\AccountProxyInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\HttpException;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Drupal\node\Entity\Node;
+use Symfony\Component\Serializer\SerializerInterface;
+use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Psr\Log\LoggerInterface;
 
 /**
  * Provides a resource for custom REST.
@@ -25,14 +25,19 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
  */
 class CustomRestResource extends ResourceBase {
   /**
+   * The serializer service.
+   */
+  protected $serializer;
+
+  /**
    * A current user instance.
    */
-  protected AccountProxyInterface $currentUser;
+  protected $currentUser;
 
   /**
    * The entity type manager.
    */
-  protected EntityTypeManagerInterface $entityTypeManager;
+  protected $entityTypeManager;
 
   /**
    * Constructs a new CustomRestResource object.
@@ -41,20 +46,23 @@ class CustomRestResource extends ResourceBase {
    * @param string $plugin_id
    * @param mixed $plugin_definition
    * @param array $serializer_formats
-   * @param \Psr\Log\LoggerInterface $logger
-   * @param \Drupal\Core\Session\AccountProxyInterface $current_user
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   * @param LoggerInterface $logger
+   * @param SerializerInterface $serializer
+   * @param AccountProxyInterface $current_user
+   * @param EntityTypeManagerInterface $entity_type_manager
    */
   public function __construct(
     array $configuration,
     $plugin_id,
     $plugin_definition,
     array $serializer_formats,
-    \Psr\Log\LoggerInterface $logger,
+    LoggerInterface $logger,
+    SerializerInterface $serializer,
     AccountProxyInterface $current_user,
     EntityTypeManagerInterface $entity_type_manager
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $serializer_formats, $logger);
+    $this->serializer = $serializer;
     $this->currentUser = $current_user;
     $this->entityTypeManager = $entity_type_manager;
   }
@@ -69,6 +77,7 @@ class CustomRestResource extends ResourceBase {
       $plugin_definition,
       $container->getParameter('serializer.formats'),
       $container->get('logger.factory')->get('rest'),
+      $container->get('serializer'),
       $container->get('current_user'),
       $container->get('entity_type.manager')
     );
@@ -83,9 +92,11 @@ class CustomRestResource extends ResourceBase {
    * @return \Drupal\rest\ResourceResponse
    */
   public function get($node) {
-    if ($node = Node::load($node)) {
+    $node = $this->entityTypeManager->getStorage('node')->load($node);
+    if ($node) {
       if ($node->access('view', $this->currentUser)) {
-        return new ResourceResponse($node);
+        $data = $this->serializer->serialize($node, 'json');
+        return new ResourceResponse(json_decode($data), 200);
       }
       throw new AccessDeniedHttpException();
     }
@@ -100,20 +111,21 @@ class CustomRestResource extends ResourceBase {
    * @return \Drupal\rest\ResourceResponse
    */
   public function post(Request $request) {
-    $data = json_decode($request->getContent(), TRUE);
+    $data = $this->serializer->deserialize($request->getContent(), 'array', 'json');
 
     if (!$this->currentUser->hasPermission('create content')) {
       throw new AccessDeniedHttpException();
     }
 
-    $node = Node::create([
+    $node = $this->entityTypeManager->getStorage('node')->create([
       'type' => $data['type'],
       'title' => $data['title'],
     ]);
 
     $node->save();
 
-    return new ResourceResponse($node, 201);
+    $response_data = $this->serializer->serialize($node, 'json');
+    return new ResourceResponse(json_decode($response_data), 201);
   }
 
   /**
@@ -125,8 +137,8 @@ class CustomRestResource extends ResourceBase {
    * @return \Drupal\rest\ResourceResponse
    */
   public function patch($node_id, Request $request) {
-    $data = json_decode($request->getContent(), TRUE);
-    $node = Node::load($node_id);
+    $data = $this->serializer->deserialize($request->getContent(), 'array', 'json');
+    $node = $this->entityTypeManager->getStorage('node')->load($node_id);
 
     if ($node && $node->access('update', $this->currentUser)) {
       foreach ($data as $field_name => $value) {
@@ -135,7 +147,8 @@ class CustomRestResource extends ResourceBase {
         }
       }
       $node->save();
-      return new ResourceResponse($node);
+      $response_data = $this->serializer->serialize($node, 'json');
+      return new ResourceResponse(json_decode($response_data), 200);
     }
     throw new BadRequestHttpException('Node not found or access denied');
   }
@@ -145,10 +158,10 @@ class CustomRestResource extends ResourceBase {
    *
    * @param int $node
    *
-   * @return \Drupal\rest\ModifiedResourceResponse
+   * @return \Drupal\rest\ResourceResponse
    */
   public function delete($node) {
-    $node = Node::load($node);
+    $node = $this->entityTypeManager->getStorage('node')->load($node);
     if ($node && $node->access('delete', $this->currentUser)) {
       $node->delete();
       return new ResourceResponse(NULL, 204);
